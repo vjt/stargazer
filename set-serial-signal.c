@@ -83,4 +83,6 @@ int main(int argc, char *argv[])
   ioctl(fd, TIOCMSET, &status); /* set the serial port status */
 
   close(fd);                    /* close the device file */
+
+  return EXIT_SUCCESS;
 }
