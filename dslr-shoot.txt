@@ -1,0 +1,391 @@
+   Link: RSS (alternate)
+   Link: YourBlogName - Atom (service.post)
+   Link: RSD (EditURI)
+   skip to main | skip to sidebar
+
+                                   Debianist Notes
+
+   In this blog are being published some notes and solves, which are found in
+   process of work, study and live in Debian GNU/Linux distribution and translated
+   from Russian from here.
+
+Wednesday, 12 December 2007
+
+  Long-time remote shooting with Canon EOS 400D
+
+   [_______________]
+
+   Problem: Shooting with exposure times 30 and more is required and this process
+   must be automated.
+   Solve: using soldering iron, common chips and bash script in Linux, it is
+   possible to make PC-driven remote control device.
+
+   What we have
+   We have Canon EOS 400D, Debian-powered notebook and necessity of shooting
+   pictures with exposure longer than 30 seconds. There is good scheme proposed by
+   Michael A. Covington here. Anyway, mirroring it here:
+
+   [IMG]
+   Pretty good scheme, but it doesn't work for Canon EOS 400D - shutter will lift
+   up bot not down.
+
+   Scheme for Canon EOS 400D
+   After some fruitless trying, I am with my colleague Alexey Ropyanoi, found out
+   why proposed scheme not work and propose new one:
+
+   [IMG]
+   And it works! Our laboratory Canon EOS 400D begin open and close shutter by
+   computer command.
+
+   Necessary electric components
+   To do the same remote shooting wire, you need 4-wire cable (from audio devices
+   or from telephone cable), 2.5mm jack (or 3/32 inch jack), mentioned in scheme
+   chips, 9-pin COM-port and USB-COM adapter (for using this remote shooting wire
+   on novel computers).
+
+   The best USB-COM adapter is on Profilic 2303 chip - it is the most common chip
+   and it works in Linux, like practically all, "out of the box".
+
+   Software
+   For remote control of camera, little program on C is needed. It is
+   setSerialSignal and it source code is placed here. It can be compiled with GCC,
+   which is part of any UNIX-like OS distribution.
+
+     gcc -o setSerialSignal setSerialSignal.c
+
+   Works on Debian GNU/Linux v4.0 r.0 "Etch", gcc version 4.1.2 20061115
+   (prerelease) (Debian 4.1.1-21).
+
+   This is the code:
+
+ /*
+ * setSerialSignal v0.1 9/13/01
+ * www.embeddedlinuxinterfacing.com
+ *
+ *
+ * The original location of this source is
+ * http://www.embeddedlinuxinterfacing.com/chapters/06/setSerialSignal.c
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU Library General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Library General Public License for more details.
+ *
+ * You should have received a copy of the GNU Library General Public
+ * License along with this program; if not, write to the
+ * Free Software Foundation, Inc.,
+ * 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+ */
+ /* setSerialSignal
+ * setSerialSignal sets the DTR and RTS serial port control signals.
+ * This program queries the serial port status then sets or clears
+ * the DTR or RTS bits based on user supplied command line setting.
+ *
+ * setSerialSignal clears the HUPCL bit. With the HUPCL bit set,
+ * when you close the serial port, the Linux serial port driver
+ * will drop DTR (assertion level 1, negative RS-232 voltage). By
+ * clearing the HUPCL bit, the serial port driver leaves the
+ * assertion level of DTR alone when the port is closed.
+ */
+
+ /*
+ gcc -o setSerialSignal setSerialSignal.c
+ */
+
+ #include
+ #include <fcntl.h>
+ #include <termios.h>
+
+ /* we need a termios structure to clear the HUPCL bit */
+ struct termios tio;
+
+ int main(int argc, char *argv[])
+ {
+ int fd;
+ int status;
+
+ if (argc != 4)
+ {
+ printf("Usage: setSerialSignal port                  DTR RTS\n");
+ printf("Usage: setSerialSignal /dev/ttyS0|/dev/ttyS1 0|1 0|1\n");
+ exit( 1 );
+ }
+
+ if ((fd = open(argv[1],O_RDWR)) < 0)
+ {
+ printf("Couldn't open %s\n",argv[1]);
+ exit(1);
+ }
+ tcgetattr(fd, &tio);          /* get the termio information */
+ tio.c_cflag &= ~HUPCL;        /* clear the HUPCL bit */
+ tcsetattr(fd, TCSANOW, &tio); /* set the termio information */
+
+ ioctl(fd, TIOCMGET, &status); /* get the serial port status */
+
+ if ( argv[2][0] == '1' )      /* set the DTR line */
+ status &= ~TIOCM_DTR;
+ else
+ status |= TIOCM_DTR;
+
+ if ( argv[3][0] == '1' )      /* set the RTS line */
+ status &= ~TIOCM_RTS;
+ else
+ status |= TIOCM_RTS;
+
+ ioctl(fd, TIOCMSET, &status); /* set the serial port status */
+
+ close(fd);                    /* close the device file */
+ }</termios.h></fcntl.h>
+
+   Sending signals
+   Compiling program and making it executable, and below listed signals which will
+   open and close shutter:
+
+   DTR
+   setSerialSignal /dev/ttyS0 1 0
+
+   Clear DTR
+   setSerialSignal /dev/ttyS0 0 0
+
+   RTS
+   setSerialSignal /dev/ttyS0 0 1
+   Clear RTS
+   setSerialSignal /dev/ttyS0 1 1
+
+   Shutter opens at DTR and closes at RTS.
+
+   Shell script for remote shooting
+   Next, it is comfortable to use bash script by Eugeni Romas aka BrainBug, but
+   for Canon 400D script was edited and here it is:
+
+   #!/bin/bash
+
+   for i in `seq $3`; do
+   {
+   setSerialSignal /dev/ttyUSB0 0 0 &&
+   sleep $1 && setSerialSignal /dev/ttyUSB0 0 1 &&
+   sleep 0.3 && setSerialSignal /dev/ttyUSB0 0 0 &&
+   sleep $2 && setSerialSignal /dev/ttyUSB0 1 1 && echo "One more image captured!"
+   &&
+   sleep $4;
+
+   }
+   done
+
+   echo "Done!"
+   Script parameters:
+   1: shutter opening delay
+   2: exposure time in seconds
+   3: amount of shots
+   4: delay between shots
+
+   Example:
+
+     make_captures 4 60 30 2
+
+   Script is written to work with USB-COM adaptor, and you need to edit it if you
+   have different port.
+
+   How it works
+   Remote shooting wire is ready, inserting USB-COM adapter with wire and next:
+
+     * Turn on camera, setting BULB mode, setting aperture size and ISO speed.
+     * Inserting jack into the camera, another and in COM-USB adapter and then in
+       USB-port.
+     * Looking at logs: kernel must recognize chip and write something like this:
+
+     usb 2-1: new full speed USB device using uhci_hcd and address 2
+     usb 2-1: configuration #1 chosen from 1 choice
+     drivers/usb/serial/usb-serial.c: USB Serial support registered for pl2303
+     pl2303 2-1:1.0: pl2303 converter detected
+     usb 2-1: pl2303 converter now attached to ttyUSB0
+     usbcore: registered new interface driver pl2303
+     drivers/usb/serial/pl2303.c: Prolific PL2303 USB to serial adaptor driver
+
+     * Now shoot:
+
+         make_capture 1 5 2 3
+
+     Here we make 2 images with 5 second exposure, delay between shots is 3
+     seconds, delay for shutter lifting 1 second.
+
+   Acknowledgements
+   I would like to express my gratitude to:
+
+     * Michael A. Covington for his original article "Building a Cable Release and
+       Serial-Port Cable for the Canon EOS 300D Digital Rebel".
+     * Eugeni Romas aka BrainBug for link to original post and discussion.
+     * Anton aka NTRNO for searching key posts at Astrophorum.
+     * Alexey Ropjanoi, who experimentally found out problem and eliminated it,
+       proposing new shceme for shooting.
+
+   And I deeply thankful to my colleagues for Solid State physic department of
+   Moscow Engineer Physics Institute.
+
+   Author is virens at 22:11     [IMG]
+
+   Labels: hardware, system
+
+   Add this post:   Google Del.icio.us DiggIt! blogmarks.net Yahoo Furl Technorati
+
+    2 comments:
+
+   Espressionist said...
+           This comment has been removed by the author.
+           18 February 2008 03:39 [IMG]
+
+   Robert Schaetzle said...
+
+           this will not work as the 3/32" (2.5mm) jack is too long to fit on a
+           current canon rebel xs
+
+           22 March 2010 01:38 [IMG]
+
+   Post a Comment
+
+                             Newer Post Older Post Home
+   Subscribe to: Post Comments (Atom)
+   [IMG]
+
+Subscribe to news
+
+   [IMG]Subscribe in a reader [IMG]Subscribe in a reader
+   [IMG]
+   [IMG]
+
+Labels
+
+     * bibtex (1)
+     * debian (6)
+     * hardware (8)
+     * image (1)
+     * latex (2)
+     * linux (18)
+     * multimedia (1)
+     * other (1)
+     * printing (2)
+     * processing (1)
+     * science (3)
+     * system (6)
+     * tweak (7)
+
+   [IMG]
+
+Older posts
+
+     * May (1)
+     * March (1)
+     * February (2)
+     * January (4)
+     * December (5)
+     * November (4)
+     * October (2)
+
+
+
+   [IMG]
+
+About author
+
+   My Photo
+
+   virens
+           I'm an engineer-physicist with broad area of interests, including image
+           processing, astronomical adaptive optics, and control systems. Some
+           papers and CV are always open as well as my Google profile. If you have
+           something interesting to say, do not hesitate to write me an email.
+
+   View my complete profile
+   [IMG]
+    
+                                        [IMG]
+
+References
+
+   Visible links
+   . http://feeds.feedburner.com/debianistnotes
+   . http://www.blogger.com/feeds/yourblogid/posts/default
+   . http://beta.blogger.com/rsd.g?blogID=yourblogid
+   . http://debianletters.blogspot.de/2007/12/long-time-remote-shooting-with-canon.html#main
+   . http://debianletters.blogspot.de/2007/12/long-time-remote-shooting-with-canon.html#sidebar
+   . http://debianletters.blogspot.de/
+   . http://mydebianblog.blogspot.com/
+   . http://debianletters.blogspot.de/2007/12/long-time-remote-shooting-with-canon.html
+   . http://www.covingtoninnovations.com/dslr/CanonRelease.html
+   . http://1.bp.blogspot.com/_hM8AMxgJLzw/RxtUu8dEy5I/AAAAAAAAASg/gi-7m7JdyXk/s1600-h/serialcableopto.jpg
+   . http://4.bp.blogspot.com/_hM8AMxgJLzw/RxtU1sdEy6I/AAAAAAAAASo/u2zsk7KZz6w/s1600-h/serialcableoptoD400.png
+   . http://book.opensourceproject.org.cn/embedded/addembed/opensource/ch06lev1sec2.htm
+   . http://www.covingtoninnovations.com/dslr/CanonRelease.html
+   . permanent link
+	http://debianletters.blogspot.de/2007/12/long-time-remote-shooting-with-canon.html
+   . Email Post
+	http://www.blogger.com/email-post.g?blogID=7179304041191259578&postID=7792092669876429999
+   . http://www.blogger.com/post-edit.g?blogID=7179304041191259578&postID=7792092669876429999&from=pencil
+   . http://debianletters.blogspot.de/search/label/hardware
+   . http://debianletters.blogspot.de/search/label/system
+   . http://www.google.com/bookmarks/mark?op=add&bkmk=http://debianletters.blogspot.de/2007/12/long-time-remote-shooting-with-canon.html&title=Long-time remote shooting with Canon EOS 400D
+   . http://del.icio.us/post?url=http://debianletters.blogspot.de/2007/12/long-time-remote-shooting-with-canon.html&title=Long-time remote shooting with Canon EOS 400D
+   . http://digg.com/submit?phase=3&url=http://debianletters.blogspot.de/2007/12/long-time-remote-shooting-with-canon.html
+   . http://blogmarks.net/my/new.php? title=http://debianletters.blogspot.de/2007/12/long-time-remote-shooting-with-canon.html&title=Long-time remote shooting with Canon EOS 400D
+   . http://myweb2.search.yahoo.com/myresults/bookmarklet?u=http://debianletters.blogspot.de/2007/12/long-time-remote-shooting-with-canon.html&=Long-time remote shooting with Canon EOS 400D
+   . http://www.furl.net/storeIt.jsp?u=http://debianletters.blogspot.de/2007/12/long-time-remote-shooting-with-canon.html&t=Long-time remote shooting with Canon EOS 400D
+   . http://www.technorati.com/cosmos/search.html?url=http://debianletters.blogspot.de/2007/12/long-time-remote-shooting-with-canon.html
+   . http://www.blogger.com/profile/04785831668088256823
+   . comment permalink
+	http://debianletters.blogspot.de/2007/12/long-time-remote-shooting-with-canon.html#comment-4952575991236801592
+   . http://www.blogger.com/delete-comment.g?blogID=7179304041191259578&postID=4952575991236801592
+   . http://www.blogger.com/profile/12728042384562811798
+   . comment permalink
+	http://debianletters.blogspot.de/2007/12/long-time-remote-shooting-with-canon.html#comment-5995484581375421360
+   . http://www.blogger.com/delete-comment.g?blogID=7179304041191259578&postID=5995484581375421360
+   . http://www.blogger.com/comment.g?blogID=7179304041191259578&postID=7792092669876429999
+   . Newer Post
+	http://debianletters.blogspot.de/2007/12/gprs-in-debian-gnulinux-with-mobile.html
+   . Older Post
+	http://debianletters.blogspot.de/2007/12/how-to-change-mac-address-of-ethernet.html
+   . http://debianletters.blogspot.de/
+   . http://debianletters.blogspot.com/feeds/7792092669876429999/comments/default
+   . http://www.blogger.com/rearrange?blogID=7179304041191259578&widgetType=AdSense&widgetId=AdSense1&action=editWidget&sectionId=sidebar
+   . http://feeds.feedburner.com/debianistnotes
+   . Subscribe to my feed
+	http://feeds.feedburner.com/debianistnotes
+   . http://feeds.feedburner.com/debianistnotes
+   . Subscribe to my feed
+	http://feeds.feedburner.com/debianistnotes
+   . http://www.blogger.com/rearrange?blogID=7179304041191259578&widgetType=HTML&widgetId=HTML2&action=editWidget&sectionId=sidebar
+   . http://www.blogger.com/rearrange?blogID=7179304041191259578&widgetType=AdSense&widgetId=AdSense3&action=editWidget&sectionId=sidebar
+   . http://debianletters.blogspot.de/search/label/bibtex
+   . http://debianletters.blogspot.de/search/label/debian
+   . http://debianletters.blogspot.de/search/label/hardware
+   . http://debianletters.blogspot.de/search/label/image
+   . http://debianletters.blogspot.de/search/label/latex
+   . http://debianletters.blogspot.de/search/label/linux
+   . http://debianletters.blogspot.de/search/label/multimedia
+   . http://debianletters.blogspot.de/search/label/other
+   . http://debianletters.blogspot.de/search/label/printing
+   . http://debianletters.blogspot.de/search/label/processing
+   . http://debianletters.blogspot.de/search/label/science
+   . http://debianletters.blogspot.de/search/label/system
+   . http://debianletters.blogspot.de/search/label/tweak
+   . http://www.blogger.com/rearrange?blogID=7179304041191259578&widgetType=Label&widgetId=Label1&action=editWidget&sectionId=sidebar
+   . http://debianletters.blogspot.de/2008_05_01_archive.html
+   . http://debianletters.blogspot.de/2008_03_01_archive.html
+   . http://debianletters.blogspot.de/2008_02_01_archive.html
+   . http://debianletters.blogspot.de/2008_01_01_archive.html
+   . http://debianletters.blogspot.de/2007_12_01_archive.html
+   . http://debianletters.blogspot.de/2007_11_01_archive.html
+   . http://debianletters.blogspot.de/2007_10_01_archive.html
+   . http://www.blogger.com/rearrange?blogID=7179304041191259578&widgetType=BlogArchive&widgetId=BlogArchive1&action=editWidget&sectionId=sidebar
+   . http://www.blogger.com/profile/12420257446841864325
+   . http://www.blogger.com/profile/12420257446841864325
+   . http://mysite.mvkonnik.info/my-papers
+   . http://mysite.mvkonnik.info/
+   . https://plus.google.com/105900467374326069987/about
+   . http://www.blogger.com/profile/12420257446841864325
+   . http://www.blogger.com/rearrange?blogID=7179304041191259578&widgetType=Profile&widgetId=Profile1&action=editWidget&sectionId=sidebar
+   . http://www.blogger.com/rearrange?blogID=7179304041191259578&widgetType=AdSense&widgetId=AdSense2&action=editWidget&sectionId=footer
