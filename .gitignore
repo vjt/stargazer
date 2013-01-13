@@ -1,2 +1,4 @@
 .*.sw?
 set-serial-signal
+*.cr2
+*.jpeg
