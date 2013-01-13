@@ -1,0 +1,20 @@
+GEM
+  remote: http://rubygems.org/
+  specs:
+    RubyInline (3.12.0)
+      ZenTest (~> 4.3)
+    ZenTest (4.8.3)
+    coderay (1.0.8)
+    method_source (0.8.1)
+    pry (0.9.10)
+      coderay (~> 1.0.5)
+      method_source (~> 0.8)
+      slop (~> 3.3.1)
+    slop (3.3.3)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  RubyInline
+  pry
