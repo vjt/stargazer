@@ -1,0 +1,11 @@
+Stargazer
+=========
+
+This is an embryo, a work in progress, for a Ruby software allowing
+you to control your Digital Single-Lens Reflex camera for long-time
+exposure (using serial cables or gphoto), set parameters, download
+shots and carry out focusing (using the pinpoint algorithm).
+
+This is very pre-alpha as of now - stay tuned.
+
+ - vjt  Mon Jan 14 01:45:27 CET 2013
